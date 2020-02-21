@@ -258,7 +258,7 @@ def calculateInterpolationPerPoint(maxInterpolation):
 def onSaveVideo():
     global lastVideoFilename
 
-    initialFilenameValue = modelPath.split("/")[-2] + "-"
+    initialFilenameValue = modelPath.split("/")[-2] + "-00"
     if lastVideoFilename != None:
         if lastVideoFilename[-2].isdigit():
             lastNumber = int(lastVideoFilename[-2])
@@ -407,7 +407,7 @@ def onLoadFile():
         OUTPUT_RESOLUTION = int( generator.list_layers()[-1][1].shape[2] )
 
         root.title('PGAN Generator - %s' % modelPath )
-
+        
         # if canvas:
         #     canvas.delete("all")
         if pointList:
