@@ -13,7 +13,11 @@ import pickle
 from osc4py3.as_eventloop import *
 from osc4py3 import oscmethod as osm
 
-PATH_MODEL = "/media/macramole/stuff/Data/sgan/bedrooms-256x256/karras2019stylegan-bedrooms-256x256.pkl"
+PATH_MODEL = "/data/sgan/snapshots/flowers/network-snapshot-011145.pkl"
+#PATH_MODEL = "/data/sgan/snapshots/ffhq/karras2019stylegan-ffhq-1024x1024.pkl"
+#PATH_MODEL = "/data/sgan/snapshots/bedrooms-256x256/karras2019stylegan-bedrooms-256x256.pkl"
+#PATH_MODEL = "/data/sgan/snapshots/flowers_512/network-snapshot-2.pkl"
+
 defaultTruncation = 0.7
 
 OUTPUT_RESOLUTION = None
@@ -22,7 +26,9 @@ SIZE_LATENT_SPACE = None
 inputVector = None #esto va a  actualizarse por OSC
 needToUpdateImage = True
 
-OSC_IP = "127.0.0.1"
+isFullscreen = False
+
+OSC_IP = "192.168.1.87"
 OSC_PORT = 4000
 
 vertex = """
@@ -93,7 +99,7 @@ def updateImage():
 def handlerfunction(*args):
     global inputVector, needToUpdateImage
     
-    print("osc arrived")
+    #print("osc arrived")
     inputVector = np.array([args])
     # print(inputVector.shape)
     needToUpdateImage = True
@@ -104,10 +110,12 @@ def handlerfunction(*args):
 
 initNeuralActivities()
 
-window = app.Window(width=OUTPUT_RESOLUTION, height=OUTPUT_RESOLUTION, aspect=1)
-    
+window = app.Window(width=OUTPUT_RESOLUTION, height=OUTPUT_RESOLUTION, aspect=1, fullscreen=True)
+#window = app.Window(fullscreen=True)
+
+aspectFix = 0
 quad = gloo.Program(vertex, fragment, count=4)
-quad['position'] = [(-1,-1), (-1,+1), (+1,-1), (+1,+1)]
+quad['position'] = [(-1+aspectFix,-1), (-1+aspectFix,+1), (+1-aspectFix,-1), (+1-aspectFix,+1)]
 quad['texcoord'] = [( 0, 1), ( 0, 0), ( 1, 1), ( 1, 0)]
 
 needToUpdateImage = True
@@ -118,7 +126,24 @@ def on_draw(dt):
     window.clear()
     quad.draw(gl.GL_TRIANGLE_STRIP)
     updateImage()
-    osc_process()
+    for i in range(100):
+        osc_process()
+
+@window.event
+def on_key_press(symbol, modifiers):
+    global isFullscreen, quad    
+    #print("key")
+    #print(symbol)
+    
+    isFullscreen = not isFullscreen
+    window.set_fullscreen(isFullscreen)
+
+    aspectFix = 0.22
+    if not isFullscreen:
+        aspectFix = 0
+    
+    quad['position'] = [(-1+aspectFix,-1), (-1+aspectFix,+1), (+1-aspectFix,-1), (+1-aspectFix,+1)]
+    quad['texcoord'] = [( 0, 1), ( 0, 0), ( 1, 1), ( 1, 0)]
 
 
 osc_startup()
