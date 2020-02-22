@@ -211,11 +211,12 @@ def updateImage(newInputVector = None):
     if recording:
         onAddPoint()
         
-    print( "update" )
-    print( list(inputVector) )
-    print( list(inputVector[0]) )
+    # print( "update" )
+    # print( list(inputVector) )
+    # print( list(inputVector[0]) )
     
-    oscClient.send_message("/input", [1,2])#list(inputVector))
+    oscClient.send_message("/input", list(inputVector[0]))
+    # oscClient.send_message("/input", 1)
 
 def onSliderTruncationChange(v):
     updateImage(inputVector)

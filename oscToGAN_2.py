@@ -10,9 +10,8 @@ import tensorflow as tf
 
 import pickle
 
-from pythonosc import dispatcher
-from pythonosc.osc_server import AsyncIOOSCUDPServer
-import asyncio
+from osc4py3.as_eventloop import *
+from osc4py3 import oscmethod as osm
 
 PATH_MODEL = "/media/macramole/stuff/Data/sgan/bedrooms-256x256/karras2019stylegan-bedrooms-256x256.pkl"
 defaultTruncation = 0.7
@@ -91,6 +90,18 @@ def updateImage():
         quad['texture'] = np.ascontiguousarray(arrImage)
         needToUpdateImage = False
 
+def handlerfunction(*args):
+    global inputVector, needToUpdateImage
+    
+    print("osc arrived")
+    inputVector = np.array([args])
+    # print(inputVector.shape)
+    needToUpdateImage = True
+    
+    
+    # print(y)
+    # Will receive message data unpacked in s, x, y
+
 initNeuralActivities()
 
 window = app.Window(width=OUTPUT_RESOLUTION, height=OUTPUT_RESOLUTION, aspect=1)
@@ -102,26 +113,18 @@ quad['texcoord'] = [( 0, 1), ( 0, 0), ( 1, 1), ( 1, 0)]
 needToUpdateImage = True
 updateImage()
 
-async def loop():
-    await app.run()
-    
-async def init_main():
-    mdispatcher = dispatcher.Dispatcher()
-    mdispatcher.map("/input", onOSCInputVector)
-    
-    server = AsyncIOOSCUDPServer((OSC_IP, OSC_PORT), mdispatcher, asyncio.get_event_loop())
-    transport, protocol = await server.create_serve_endpoint()  # Create datagram endpoint and start serving
-
-    await loop()  # Enter main loop of program
-
-    transport.close()  # Clean up serve endpoint
-
 @window.event
 def on_draw(dt):
     window.clear()
     quad.draw(gl.GL_TRIANGLE_STRIP)
     updateImage()
+    osc_process()
 
-print("start")
-loop = asyncio.get_event_loop()
-loop.run_until_complete(init_main())
+
+osc_startup()
+osc_udp_server(OSC_IP, OSC_PORT, "aservername")
+osc_method("/input", handlerfunction)
+
+app.run()
+
+osc_terminate()
