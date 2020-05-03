@@ -329,17 +329,6 @@ def onSaveVideo():
 			progressBar['value'] = (currentFrame/len(arrInterpolations))*100
 			root.update_idletasks()
 
-		# for i in range(0,len(arrInterpolation)):
-			# if pointTo == 0 and i == len(arrInterpolation) - 1 :
-			#     break
-
-			# latentSample = np.array([arrInterpolation[i]])
-			# generated = generateFromGAN( latentSample )
-			# generatedImage = Image.fromarray(generated[0], 'RGB')
-			# currentFrame = np.sum( cantInterpolations[0:pointFrom] )+i+1
-			# generatedImage.save( "%s/%05d.png" % (currentPathResult,currentFrame) )
-
-
 	script = PATH_IMAGES_TO_VIDEO if doLoop.get() == 0 else PATH_IMAGES_TO_VIDEO_WITH_LOOP
 	subprocess.call([script, currentPathResult, videoFilename])
 
@@ -349,14 +338,7 @@ def onSaveVideo():
 	root.update_idletasks()
 
 	subprocess.call(["vlc", videoFilename])
-		# generatedImages = generateFromGAN( arrInterpolation )
-		# generatedPhotos = []
-		#
-		# for g in generatedImages:
-		#     photo = ImageTk.PhotoImage(image=Image.fromarray(g, 'RGB'))
-		#     generatedPhotos.append(photo)
-		#
-		# showFrame(generatedPhotos, 0)
+		
 def onSaveStill():
 	global recordingCurrentFrame, stillFilename
 
