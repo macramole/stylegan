@@ -407,7 +407,7 @@ def onLoadFile():
         OUTPUT_RESOLUTION = int( generator.list_layers()[-1][1].shape[2] )
 
         root.title('PGAN Generator - %s' % modelPath )
-        
+
         # if canvas:
         #     canvas.delete("all")
         if pointList:
@@ -453,7 +453,7 @@ btnRandom = tk.Button(optionsFrame, text="Random", command=onRandomClick)
 btnRandom.pack()
 lblTruncation = tk.Label(optionsFrame, text='Truncation:')
 lblTruncation.pack(side = tk.LEFT)
-sliderTruncation = tk.Scale(optionsFrame, to=10, resolution=1, orient=tk.HORIZONTAL, command=onSliderTruncationChange)
+sliderTruncation = tk.Scale(optionsFrame, from_=-30, to=30, resolution=1, orient=tk.HORIZONTAL, command=onSliderTruncationChange)
 sliderTruncation.set( int(defaultTruncation * 10) )
 sliderTruncation.pack(side = tk.LEFT, fill=tk.X)
 

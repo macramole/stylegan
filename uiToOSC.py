@@ -20,7 +20,7 @@ SIZE_LATENT_SPACE = 512 # esto quizas deberia queriar de oscToGAN ?
 OUTPUT_RESOLUTION = 256 # esto quizas deberia queriar de oscToGAN ?
 CANVAS_SIZE = 512
 
-OSC_IP = "127.0.0.1"
+OSC_IP = "192.168.0.87"
 OSC_PORT = 4000
 oscClient = None
 
