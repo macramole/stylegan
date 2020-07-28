@@ -14,6 +14,8 @@ import tkinter.ttk as ttk
 from tkinter import filedialog
 from tkinter import simpledialog
 from tkinter import messagebox
+from functools import partial
+
 import numpy as np
 
 import pickle
@@ -21,11 +23,16 @@ import tensorflow as tf
 from PIL import Image, ImageTk
 import subprocess
 
+from encoder.generator_model import Generator
+
 from scipy.interpolate import interp1d
 
+encoderGenerator = None # new model capable of loading mappings (1, 18, 512)
 generator = None
 SIZE_LATENT_SPACE = None # filled on load
 OUTPUT_RESOLUTION = None # filled on load
+
+currentShowingDim = 0
 
 pointsSaved = []
 inputVector = []
@@ -67,17 +74,24 @@ def init():
 	onLoadFile()
 
 def generateFromGAN(latents):
-	truncation = defaultTruncation
-	if sliderTruncation is not None:
-		truncation = sliderTruncation.get()/10
+	print(latents.shape)
+	if latents.shape[0] != 18:
+		truncation = defaultTruncation
+		if sliderTruncation is not None:
+			truncation = sliderTruncation.get()/10
 
-	# Generate dummy labels (not used by the official networks).
-	labels = np.zeros([latents.shape[0]] + generator.input_shapes[1][1:])
-	images = generator.run(latents, labels, truncation_psi=truncation, randomize_noise=False )
+		# Generate dummy labels (not used by the official networks).
+		labels = np.zeros([latents.shape[0]] + generator.input_shapes[1][1:])
+		images = generator.run(latents, labels, truncation_psi=truncation, randomize_noise=False )
 
-	# Convert images to PIL-compatible format.
-	images = np.clip(np.rint((images + 1.0) / 2.0 * 255.0), 0.0, 255.0).astype(np.uint8) # [-1,1] => [0,255]
-	images = images.transpose(0, 2, 3, 1) # NCHW => NHWC
+		# Convert images to PIL-compatible format.
+		images = np.clip(np.rint((images + 1.0) / 2.0 * 255.0), 0.0, 255.0).astype(np.uint8) # [-1,1] => [0,255]
+		images = images.transpose(0, 2, 3, 1) # NCHW => NHWC
+	else:
+		print("using encoder generator")
+		latent_vector = latents.reshape((1, 18, 512))
+		encoderGenerator.set_dlatents(latent_vector)
+		images = encoderGenerator.generate_images()
 
 	return images
 
@@ -98,8 +112,8 @@ def updateImage(newInputVector = None):
 	global inputVector, recordingCurrentFrame, arrayImage
 
 	if not type(newInputVector) is np.ndarray:
-		# inputVector = np.random.normal(0, 1, (1, SIZE_LATENT_SPACE))
-		inputVector = np.random.uniform(-3, 3, (1, SIZE_LATENT_SPACE))
+		inputVector = np.random.normal(0, 1, (1, SIZE_LATENT_SPACE))
+		# inputVector = np.random.uniform(-3, 3, (1, SIZE_LATENT_SPACE))
 		drawAllPointsPair()
 	else:
 		inputVector = newInputVector
@@ -160,8 +174,8 @@ def pointsMoved():
 		i = (p - 1) * 2
 		coords = canvas.coords(p)
 
-		inputVector[0][i] = mapValue(coords[0] + POINT_RADIUS, 0, OUTPUT_RESOLUTION, -3, 3)
-		inputVector[0][i+1] = mapValue(coords[1] + POINT_RADIUS, 0, OUTPUT_RESOLUTION, -3, 3)
+		inputVector[currentShowingDim][i] = mapValue(coords[0] + POINT_RADIUS, 0, OUTPUT_RESOLUTION, -0.5, 0.5)
+		inputVector[currentShowingDim][i+1] = mapValue(coords[1] + POINT_RADIUS, 0, OUTPUT_RESOLUTION, -0.5, 0.5)
 
 	updateImage(inputVector)
 
@@ -206,9 +220,9 @@ def drawAllPointsPair():
 		# canvas.itemconfig( "selected", fill = COLOR_POINT )
 		# canvas.dtag( "selected" )
 
-	for p in range(0, inputVector[0].shape[0] - 1, 2):
-		x = mapValue(inputVector[0][p], -3,3, 0, OUTPUT_RESOLUTION)
-		y = mapValue(inputVector[0][p+1], -3,3, 0, OUTPUT_RESOLUTION)
+	for p in range(0, inputVector[currentShowingDim].shape[0] - 1, 2):
+		x = mapValue(inputVector[currentShowingDim][p], -0.5,0.5, 0, OUTPUT_RESOLUTION)
+		y = mapValue(inputVector[currentShowingDim][p+1], -0.5,0.5, 0, OUTPUT_RESOLUTION)
 
 		if needToCreate:
 			canvas.create_oval(x-POINT_RADIUS,y-POINT_RADIUS,x+POINT_RADIUS,y+POINT_RADIUS, fill=COLOR_POINT)
@@ -373,9 +387,10 @@ def onRandomClick():
 	updateImage()
 
 def onLoadFile():
-	global generator, SIZE_LATENT_SPACE, OUTPUT_RESOLUTION, pointsSaved, modelPath
+	global generator, encoderGenerator, SIZE_LATENT_SPACE, OUTPUT_RESOLUTION, pointsSaved, modelPath
 
-	modelPath = filedialog.askopenfilename(initialdir = PATH_LOAD_FILE, title = "Select file")
+	# modelPath = filedialog.askopenfilename(initialdir = PATH_LOAD_FILE, title = "Select file")
+	modelPath = "/media/leandro/stuff/Data/ahegao/network-snapshot-011225.pkl"
 	with open( modelPath, 'rb' ) as file:
 		_, _, generator = pickle.load(file)
 		SIZE_LATENT_SPACE = int( generator.list_layers()[0][1].shape[1] )
@@ -389,18 +404,41 @@ def onLoadFile():
 			pointList.delete(0,tk.END)
 		pointsSaved = []
 
+		encoderGenerator = Generator(generator, 1)
+
+def onLoadLatentVectorFromFile():
+	latentPath = filedialog.askopenfilename(initialdir = PATH_LOAD_FILE, title = "Select file")
+	latent_vector = np.load(latentPath)
+	pointList.insert(tk.END, "%d" % ( pointList.size()+1 ) )
+	pointsSaved.append( np.copy( latent_vector ) )
+
+	updateImage( np.copy(pointsSaved[pointList.size()-1]) )
+	drawAllPointsPair()
+
 def onLoadFileMenu():
 	onLoadFile()
 	onRandomClick()
 
+def onLatentDimClick(*args):
+	global currentShowingDim
+	currentShowingDim = int(tkVarDimension.get())
+	drawAllPointsPair()
 
+def onRandomDimensionClick():
+	global inputVector
+	print(sliderRandomDimension.get())
+	inputVector[currentShowingDim] = np.random.normal(0, sliderRandomDimension.get(), (1, SIZE_LATENT_SPACE))
+	updateImage(inputVector)
+	drawAllPointsPair()
 
 root = tk.Tk()
 init()
 
 menubar = tk.Menu(root)
 filemenu = tk.Menu(menubar, tearoff=0)
-filemenu.add_command(label="Load file", command=onLoadFileMenu)
+filemenu.add_command(label="Load model", command=onLoadFileMenu)
+filemenu.add_command(label="Load latent vector", command=onLoadLatentVectorFromFile)
+
 menubar.add_cascade(label="File", menu=filemenu)
 
 root.config(menu=menubar)
@@ -425,13 +463,30 @@ btnSaveStill.grid(row=1,column=2)
 
 optionsFrame = tk.Frame(root)
 optionsFrame.grid(row=1, column=1)
+
+tkVarDimension = tk.StringVar(root)
+dimensionChoices = {}
+for i in range(18):
+	dimensionChoices[str(i)] = i
+tkVarDimension.set(0)
+dimensionOptionMenu = tk.OptionMenu(optionsFrame, tkVarDimension, *dimensionChoices)
+# Label(mainframe, text="Choose a dish").grid(row = 1, column = 1)
+# popupMenu.grid(row = 2, column =1)
+tkVarDimension.trace('w', onLatentDimClick)
+dimensionOptionMenu.pack()
+
+btnRandomDimension = tk.Button(optionsFrame, text="Random dimension", command=onRandomDimensionClick)
+btnRandomDimension.pack(side = tk.LEFT)
+sliderRandomDimension =  tk.Scale(optionsFrame, from_=0.01, to=0.3, resolution=0.01, orient=tk.HORIZONTAL)
+sliderRandomDimension.pack(side = tk.LEFT, fill=tk.X)
+
 btnRandom = tk.Button(optionsFrame, text="Random", command=onRandomClick)
-btnRandom.pack()
-lblTruncation = tk.Label(optionsFrame, text='Truncation:')
-lblTruncation.pack(side = tk.LEFT)
-sliderTruncation = tk.Scale(optionsFrame, from_=-30, to=30, resolution=1, orient=tk.HORIZONTAL, command=onSliderTruncationChange)
-sliderTruncation.set( int(defaultTruncation * 10) )
-sliderTruncation.pack(side = tk.LEFT, fill=tk.X)
+btnRandom.pack(fill=tk.Y)
+# lblTruncation = tk.Label(optionsFrame, text='Truncation:')
+# lblTruncation.pack(side = tk.LEFT)
+# sliderTruncation = tk.Scale(optionsFrame, from_=-30, to=30, resolution=1, orient=tk.HORIZONTAL, command=onSliderTruncationChange)
+# sliderTruncation.set( int(defaultTruncation * 10) )
+# sliderTruncation.pack(side = tk.LEFT, fill=tk.X)
 
 pointsFrame = tk.Frame(root)
 pointsFrame.grid(row=0,column=3, padx = 5)
